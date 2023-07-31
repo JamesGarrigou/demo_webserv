@@ -22,6 +22,60 @@
 #include <vector>
 #include "HttpRequest.hpp"
 
+// Static member variables
+static std::vector<std::string>	getMethodsForbidden(void)
+{
+	std::vector<std::string>	methodsForbidden;
+
+	methodsForbidden.push_back("HEAD");
+	methodsForbidden.push_back("PUT");
+	methodsForbidden.push_back("CONNECT");
+	methodsForbidden.push_back("OPTIONS");
+	methodsForbidden.push_back("TRACE");
+	return (methodsForbidden);
+}
+static std::vector<std::string>	getMethodsOk(void)
+{
+	std::vector<std::string>	methodsOk;
+
+	methodsOk.push_back("GET");
+	methodsOk.push_back("POST");
+	methodsOk.push_back("DELETE");
+	return (methodsOk);
+}
+static std::map<std::string, std::string>	getDescription(void)
+{
+	std::map<std::string, std::string>	description;
+
+	description["200"] = "OK";
+	description["400"] = "Bad request";
+	description["403"] = "Forbidden";
+	description["404"] = "Not found";
+	description["405"] = "Method not allowed";
+	description["411"] = "Length required";
+	description["413"] = "Request entity too large";
+	description["500"] = "Internal server error";
+	description["501"] = "Not implemented";
+	description["505"] = "HTTP Version not supported";
+	return (description);
+}
+static std::map<std::string, std::string>	getContentType(void)
+{
+	std::map<std::string, std::string>	content_type;
+
+	content_type["html"] = "text/html";
+	content_type["css"] = "text/css";
+	content_type["jpg"] = "image/jpeg";
+	content_type["jpeg"] = "image/jpeg";
+	content_type["png"] = "image/png";
+	return (content_type);
+}
+
+std::vector<std::string>			HttpRequest::_methods_forbidden = getMethodsForbidden();
+std::vector<std::string>			HttpRequest::_methods_ok = getMethodsOk();
+std::map<std::string, std::string>	HttpRequest::_description = getDescription();
+std::map<std::string, std::string>	HttpRequest::_content_type = getContentType();
+
 // Coplien
 HttpRequest::HttpRequest(void):
 	_method(""),
@@ -66,12 +120,9 @@ HttpRequest	&HttpRequest::operator=(HttpRequest const &rhs)
 // _verifyHeader
 void	HttpRequest::_verifyHeader(void) const
 {
-	std::vector<std::string>	methods_forbidden = {"HEAD", "PUT", "CONNECT", "OPTIONS", "TRACE"};
-	std::vector<std::string>	methods_ok = {"GET", "POST", "DELETE"};
-
-	if (find(methods_forbidden.begin(), methods_forbidden.end(), _method) != methods_forbidden.end())
+	if (find(HttpRequest::_methods_forbidden.begin(), HttpRequest::_methods_forbidden.end(), _method) != HttpRequest::_methods_forbidden.end())
 		throw (Error("405"));
-	if (find(methods_ok.begin(), methods_ok.end(), _method) == methods_ok.end())
+	if (find(HttpRequest::_methods_ok.begin(), HttpRequest::_methods_ok.end(), _method) == HttpRequest::_methods_ok.end())
 		throw (Error("501"));
 }
 
@@ -173,7 +224,7 @@ void	HttpRequest::_parseBody(void)
 		}
 	}
 	else if (_field.count(CONTENT_LENGTH))
-		_body = _raw.substr(0, std::stoi(_field[CONTENT_LENGTH]));
+		_body = _raw.substr(0, std::atoi(_field[CONTENT_LENGTH].c_str()));
 }
 
 // _rawHeaderComplete
@@ -269,38 +320,6 @@ void	HttpRequest::clear(void)
 	_bodyComplete = false;
 }
 
-static std::map<std::string, std::string>	getDescription(void)
-{
-	std::map<std::string, std::string>	description;
-
-	description["200"] = "OK";
-	description["400"] = "Bad request";
-	description["403"] = "Forbidden";
-	description["404"] = "Not found";
-	description["405"] = "Method not allowed";
-	description["411"] = "Length required";
-	description["413"] = "Request entity too large";
-	description["500"] = "Internal server error";
-	description["501"] = "Not implemented";
-	description["505"] = "HTTP Version not supported";
-	return (description);
-}
-
-static std::map<std::string, std::string>	getContentType(void)
-{
-	std::map<std::string, std::string>	content_type;
-
-	content_type["html"] = "text/html";
-	content_type["css"] = "text/css";
-	content_type["jpg"] = "image/jpeg";
-	content_type["jpeg"] = "image/jpeg";
-	content_type["png"] = "image/png";
-	return (content_type);
-}
-
-std::map<std::string, std::string>	HttpRequest::_description = getDescription();
-std::map<std::string, std::string>	HttpRequest::_content_type = getContentType();
-
 template <class T>
 std::string	numberToString(T nb)
 {
@@ -323,19 +342,21 @@ int	HttpRequest::respond(int fd, std::string status)
 	if (_uri == "/")
 		_uri = "/index.html";
 
-	std::ifstream	file("./site" + _uri);
+	_uri = "./site" + _uri;
+	std::ifstream	file(_uri.c_str());
 	if (!file.is_open())
 	{
 		std::cerr << "File not opened" << std::endl;
-		_uri = "/errors/404.html";
+		_uri = "./site/errors/404.html";
 		status = "404";
-		std::ifstream	file2("./site" + _uri);
+		std::ifstream	file2(_uri.c_str());
 		if (!file2.is_open())
 			return (1);
 		std::cout << "404 opened" << std::endl;
 		buffer << file2.rdbuf();
 	}
 	buffer << file.rdbuf();
+	file.close();
 	body = buffer.str();
 
 	response += _protocol;
@@ -401,4 +422,10 @@ std::ostream	&operator<<(std::ostream &out, const HttpRequest &rhs)
 	else
 		out << "Body: NONE" << std::endl;
 	return (out);
+}
+
+// Exception
+const char	*HttpRequest::Error::what(void) const throw()
+{
+	return (_type);
 }

@@ -51,6 +51,8 @@ class HttpRequest
 		bool		_headerComplete;
 		bool		_bodyComplete;
 	// Static
+		static std::vector<std::string>				_methods_forbidden;
+		static std::vector<std::string>				_methods_ok;
 		static std::map<std::string, std::string>	_description;
 		static std::map<std::string, std::string>	_content_type;
 
@@ -87,11 +89,10 @@ class HttpRequest
 class HttpRequest::Error : public std::exception
 {
 	private:
-		std::string	_error;
-
+		char	_type[4];
 	public:
-		Error(const std::string &error): _error(error) {}
-		const char	*what(void) const throw() {return (_error.c_str());};
+		Error(const char type[4]) {memcpy(_type, type, 4);}
+		const char	*what(void) const throw();
 };
 
 #endif
